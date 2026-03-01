@@ -236,7 +236,7 @@ class VexMemoryClient(AutoTuningMixin):
             else:
                 payload["event_time"] = event_time
         
-        return self._post("/api/memory", payload)
+        return self._post("/memories", payload)
     
     def query_memories(
         self,
@@ -262,7 +262,7 @@ class VexMemoryClient(AutoTuningMixin):
             "min_similarity": min_similarity
         }
         
-        return self._post("/api/query", payload)
+        return self._post("/query", payload)
     
     def get_memory(self, memory_id: str) -> Dict[str, Any]:
         """Get memory by ID.
@@ -276,7 +276,7 @@ class VexMemoryClient(AutoTuningMixin):
         Raises:
             VexMemoryAPIError: Memory not found or request failed
         """
-        return self._get(f"/api/memory/{memory_id}")
+        return self._get(f"/memories/{memory_id}")
     
     def update_memory(
         self,
@@ -309,7 +309,7 @@ class VexMemoryClient(AutoTuningMixin):
         if metadata is not None:
             payload["metadata"] = metadata
         
-        return self._put(f"/api/memory/{memory_id}", payload)
+        return self._put(f"/memories/{memory_id}", payload)
     
     def delete_memory(self, memory_id: str) -> bool:
         """Delete memory.
@@ -320,7 +320,7 @@ class VexMemoryClient(AutoTuningMixin):
         Returns:
             True if deleted successfully
         """
-        self._delete(f"/api/memory/{memory_id}")
+        self._delete(f"/memories/{memory_id}")
         return True
     
     def extract_memories(self, text: str) -> Dict[str, Any]:
@@ -338,6 +338,7 @@ class VexMemoryClient(AutoTuningMixin):
     def create_namespace(
         self,
         name: str,
+        owner_agent: str,
         description: Optional[str] = None,
         metadata: Optional[Dict] = None
     ) -> Dict[str, Any]:
@@ -345,13 +346,17 @@ class VexMemoryClient(AutoTuningMixin):
         
         Args:
             name: Namespace name
+            owner_agent: Agent identifier that owns this namespace
             description: Optional description
             metadata: Optional metadata
             
         Returns:
             Created namespace dictionary
         """
-        payload = {"name": name}
+        payload = {
+            "name": name,
+            "owner_agent": owner_agent
+        }
         
         if description is not None:
             payload["description"] = description
@@ -359,7 +364,7 @@ class VexMemoryClient(AutoTuningMixin):
         if metadata is not None:
             payload["metadata"] = metadata
         
-        return self._post("/api/namespace", payload)
+        return self._post("/namespaces", payload)
     
     def list_namespaces(
         self,
@@ -380,7 +385,7 @@ class VexMemoryClient(AutoTuningMixin):
         if agent_id is not None:
             params["agent_id"] = agent_id
         
-        return self._get("/api/namespaces", params=params)
+        return self._get("/namespaces", params=params)
     
     def grant_access(
         self,
@@ -404,7 +409,11 @@ class VexMemoryClient(AutoTuningMixin):
             "permission": permission
         }
         
-        return self._post("/api/namespace/grant", payload)
+        payload_fixed = {
+            "agent_id": agent_id,
+            "permission": permission
+        }
+        return self._post(f"/namespaces/{namespace_id}/grant", payload_fixed)
     
     # Weight configuration methods (v1.2.0)
     

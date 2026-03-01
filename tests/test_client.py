@@ -204,7 +204,7 @@ class TestStoreMemory:
         """Test basic memory storage."""
         responses.add(
             responses.POST,
-            "http://test-server:8000/api/memory",
+            "http://test-server:8000/memories",
             json={
                 "id": "mem-123",
                 "content": "Test memory",
@@ -240,7 +240,7 @@ class TestQueryMemories:
         """Test basic query."""
         responses.add(
             responses.POST,
-            "http://test-server:8000/api/query",
+            "http://test-server:8000/query",
             json={
                 "memories": [
                     {"id": "1", "content": "Result 1"},
@@ -263,7 +263,7 @@ class TestGetMemory:
         """Test successful memory retrieval."""
         responses.add(
             responses.GET,
-            "http://test-server:8000/api/memory/mem-123",
+            "http://test-server:8000/memories/mem-123",
             json={
                 "id": "mem-123",
                 "content": "Test memory"
@@ -280,7 +280,7 @@ class TestGetMemory:
         """Test memory not found."""
         responses.add(
             responses.GET,
-            "http://test-server:8000/api/memory/nonexistent",
+            "http://test-server:8000/memories/nonexistent",
             json={"detail": "Memory not found"},
             status=404
         )
@@ -299,7 +299,7 @@ class TestUpdateMemory:
         """Test memory update."""
         responses.add(
             responses.PUT,
-            "http://test-server:8000/api/memory/mem-123",
+            "http://test-server:8000/memories/mem-123",
             json={
                 "id": "mem-123",
                 "content": "Updated content",
@@ -325,7 +325,7 @@ class TestDeleteMemory:
         """Test memory deletion."""
         responses.add(
             responses.DELETE,
-            "http://test-server:8000/api/memory/mem-123",
+            "http://test-server:8000/memories/mem-123",
             status=200
         )
         
@@ -342,7 +342,7 @@ class TestNamespaces:
         """Test namespace creation."""
         responses.add(
             responses.POST,
-            "http://test-server:8000/api/namespace",
+            "http://test-server:8000/namespaces",
             json={
                 "namespace_id": "ns-123",
                 "name": "test-namespace"
@@ -350,7 +350,7 @@ class TestNamespaces:
             status=200
         )
         
-        result = client.create_namespace(name="test-namespace")
+        result = client.create_namespace(name="test-namespace", owner_agent="test-agent")
         
         assert result["namespace_id"] == "ns-123"
     
@@ -359,7 +359,7 @@ class TestNamespaces:
         """Test access grant."""
         responses.add(
             responses.POST,
-            "http://test-server:8000/api/namespace/grant",
+            "http://test-server:8000/namespaces/ns-123/grant",
             json={"success": True},
             status=200
         )
