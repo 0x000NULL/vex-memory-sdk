@@ -41,7 +41,9 @@ class VexMemoryClient:
         diversity_threshold: float = 0.7,
         min_score: Optional[float] = None,
         namespace: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
+        use_mmr: bool = False,
+        mmr_lambda: float = 0.7
     ) -> Dict[str, Any]:
         """Build intelligent context within token budget.
         
@@ -57,6 +59,8 @@ class VexMemoryClient:
             min_score: Minimum composite score threshold (0-1, optional)
             namespace: Optional namespace UUID filter
             limit: Maximum candidate memories to retrieve (default: 100)
+            use_mmr: Use Maximal Marginal Relevance for selection (default: False)
+            mmr_lambda: MMR balance between relevance (1.0) and diversity (0.0) (default: 0.7)
             
         Returns:
             Dictionary with keys:
@@ -80,6 +84,9 @@ class VexMemoryClient:
         if min_score is not None and not (0.0 <= min_score <= 1.0):
             raise VexMemoryValidationError("Min score must be between 0 and 1")
         
+        if not (0.0 <= mmr_lambda <= 1.0):
+            raise VexMemoryValidationError("MMR lambda must be between 0 and 1")
+        
         # Build request payload
         payload = {
             "query": query,
@@ -98,8 +105,18 @@ class VexMemoryClient:
         if namespace is not None:
             payload["namespace"] = namespace
         
-        # Make request
-        return self._post("/api/memories/prioritized-context", payload)
+        # Choose endpoint based on use_mmr
+        if use_mmr:
+            # Add lambda parameter for MMR
+            if "weights" not in payload:
+                payload["weights"] = {}
+            payload["weights"]["lambda"] = mmr_lambda
+            
+            # Make request to MMR endpoint
+            return self._post("/api/memories/prioritized-mmr", payload)
+        else:
+            # Make request to standard prioritization endpoint
+            return self._post("/api/memories/prioritized-context", payload)
     
     def format_context_for_llm(
         self,
@@ -381,6 +398,44 @@ class VexMemoryClient:
         }
         
         return self._post("/api/namespace/grant", payload)
+    
+    # Weight configuration methods (v1.2.0)
+    
+    def get_weight_presets(self) -> Dict[str, Any]:
+        """Get available weight preset configurations.
+        
+        Returns list of preset configurations for different use cases
+        (balanced, relevance_focused, recency_focused, etc.)
+        
+        Returns:
+            Dictionary with 'presets' key containing list of preset info
+            
+        Raises:
+            VexMemoryAPIError: API request failed
+        """
+        return self._get("/api/weights/presets")
+    
+    def get_recommended_weights(self, use_case: str = "balanced") -> Dict[str, Any]:
+        """Get recommended weights for a specific use case.
+        
+        Available use cases:
+        - balanced: Balanced across all factors
+        - relevance_focused: Prioritizes similarity and importance
+        - recency_focused: Prioritizes recent memories
+        - diversity_focused: Maximizes variety and coverage
+        - entity_focused: Prioritizes entity coverage
+        - importance_focused: Prioritizes memory importance
+        
+        Args:
+            use_case: Use case identifier (default: "balanced")
+            
+        Returns:
+            Weight configuration dictionary with name, description, and weights
+            
+        Raises:
+            VexMemoryAPIError: API request failed
+        """
+        return self._get("/api/weights/recommend", params={"use_case": use_case})
     
     # Internal HTTP methods
     

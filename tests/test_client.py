@@ -373,5 +373,194 @@ class TestNamespaces:
         assert result["success"] is True
 
 
+class TestMMR:
+    """Test MMR (Maximal Marginal Relevance) functionality."""
+    
+    @responses.activate
+    def test_build_context_with_mmr(self, client):
+        """Test context building with MMR."""
+        responses.add(
+            responses.POST,
+            "http://test-server:8000/api/memories/prioritized-mmr",
+            json={
+                "memories": [
+                    {
+                        "id": "mem-1",
+                        "content": "First memory",
+                        "importance_score": 0.9
+                    }
+                ],
+                "metadata": {
+                    "total_tokens": 50,
+                    "method": "mmr",
+                    "lambda": 0.7
+                }
+            },
+            status=200
+        )
+        
+        result = client.build_context(
+            query="test query",
+            use_mmr=True,
+            mmr_lambda=0.7
+        )
+        
+        assert len(result["memories"]) == 1
+        assert result["metadata"]["method"] == "mmr"
+        assert result["metadata"]["lambda"] == 0.7
+    
+    @responses.activate
+    def test_build_context_mmr_custom_lambda(self, client):
+        """Test MMR with custom lambda parameter."""
+        responses.add(
+            responses.POST,
+            "http://test-server:8000/api/memories/prioritized-mmr",
+            json={
+                "memories": [],
+                "metadata": {"total_tokens": 0, "method": "mmr", "lambda": 0.3}
+            },
+            status=200
+        )
+        
+        result = client.build_context(
+            query="test",
+            use_mmr=True,
+            mmr_lambda=0.3  # More diversity
+        )
+        
+        assert result["metadata"]["lambda"] == 0.3
+    
+    def test_mmr_lambda_validation(self, client):
+        """Test MMR lambda parameter validation."""
+        with pytest.raises(VexMemoryValidationError):
+            client.build_context(query="test", use_mmr=True, mmr_lambda=1.5)
+        
+        with pytest.raises(VexMemoryValidationError):
+            client.build_context(query="test", use_mmr=True, mmr_lambda=-0.1)
+
+
+class TestWeightPresets:
+    """Test weight preset functionality."""
+    
+    @responses.activate
+    def test_get_weight_presets(self, client):
+        """Test getting available weight presets."""
+        responses.add(
+            responses.GET,
+            "http://test-server:8000/api/weights/presets",
+            json={
+                "presets": [
+                    {
+                        "name": "Balanced",
+                        "key": "balanced",
+                        "description": "Balanced across all factors"
+                    },
+                    {
+                        "name": "Relevance Focused",
+                        "key": "relevance_focused",
+                        "description": "Prioritizes similarity"
+                    }
+                ]
+            },
+            status=200
+        )
+        
+        result = client.get_weight_presets()
+        
+        assert "presets" in result
+        assert len(result["presets"]) == 2
+        assert result["presets"][0]["key"] == "balanced"
+    
+    @responses.activate
+    def test_get_recommended_weights(self, client):
+        """Test getting recommended weights for a use case."""
+        responses.add(
+            responses.GET,
+            "http://test-server:8000/api/weights/recommend",
+            json={
+                "name": "Entity Focused",
+                "description": "Prioritizes entity coverage",
+                "weights": {
+                    "similarity": 0.3,
+                    "importance": 0.25,
+                    "recency": 0.1,
+                    "diversity": 0.1,
+                    "entity_coverage": 0.25
+                }
+            },
+            status=200
+        )
+        
+        result = client.get_recommended_weights(use_case="entity_focused")
+        
+        assert result["name"] == "Entity Focused"
+        assert result["weights"]["entity_coverage"] == 0.25
+    
+    @responses.activate
+    def test_get_recommended_weights_default(self, client):
+        """Test getting recommended weights with default use case."""
+        responses.add(
+            responses.GET,
+            "http://test-server:8000/api/weights/recommend",
+            json={
+                "name": "Balanced",
+                "weights": {
+                    "similarity": 0.35,
+                    "importance": 0.3,
+                    "recency": 0.2,
+                    "diversity": 0.1,
+                    "entity_coverage": 0.05
+                }
+            },
+            status=200
+        )
+        
+        result = client.get_recommended_weights()
+        
+        assert result["name"] == "Balanced"
+    
+    @responses.activate
+    def test_build_context_with_preset_weights(self, client):
+        """Test using preset weights in build_context."""
+        # First get the preset
+        responses.add(
+            responses.GET,
+            "http://test-server:8000/api/weights/recommend",
+            json={
+                "name": "Relevance Focused",
+                "weights": {
+                    "similarity": 0.6,
+                    "importance": 0.25,
+                    "recency": 0.1,
+                    "diversity": 0.03,
+                    "entity_coverage": 0.02
+                }
+            },
+            status=200
+        )
+        
+        # Then use it in build_context
+        responses.add(
+            responses.POST,
+            "http://test-server:8000/api/memories/prioritized-context",
+            json={
+                "memories": [{"id": "mem-1", "content": "Test"}],
+                "metadata": {"total_tokens": 10}
+            },
+            status=200
+        )
+        
+        # Get recommended weights
+        preset = client.get_recommended_weights("relevance_focused")
+        
+        # Use them in context building
+        result = client.build_context(
+            query="test",
+            weights=preset["weights"]
+        )
+        
+        assert len(result["memories"]) == 1
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

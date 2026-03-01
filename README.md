@@ -30,11 +30,12 @@ memory = client.store_memory(
     memory_type="event"
 )
 
-# Build intelligent context (NEW in v1.1.0!)
+# Build intelligent context (v1.2.0 - now with MMR!)
 context = client.build_context(
     query="When is the project launch?",
     token_budget=2000,
-    model="gpt-4"
+    model="gpt-4",
+    use_mmr=True  # NEW: Use Maximal Marginal Relevance
 )
 
 print(f"Context uses {context['metadata']['total_tokens']} tokens")
@@ -46,16 +47,16 @@ formatted = client.format_context_for_llm(context)
 
 ## Features
 
-### Smart Context Building (v1.1.0)
+### Smart Context Building (v1.2.0)
 
-The `build_context()` method uses the intelligent prioritization endpoint:
+The `build_context()` method uses intelligent prioritization with MMR support:
 
 ```python
 context = client.build_context(
     query="What did we discuss about the database?",
-    token_budget=4000,  # Maximum tokens to use
-    model="gpt-4",      # LLM model for token counting
-    weights={           # Optional custom weights
+    token_budget=4000,        # Maximum tokens to use
+    model="gpt-4",            # LLM model for token counting
+    weights={                 # Optional custom weights
         "similarity": 0.5,
         "importance": 0.3,
         "recency": 0.2,
@@ -63,7 +64,9 @@ context = client.build_context(
     },
     diversity_threshold=0.7,  # Jaccard similarity threshold
     min_score=0.5,            # Filter low-score memories
-    namespace="my-namespace"   # Optional namespace filter
+    namespace="my-namespace", # Optional namespace filter
+    use_mmr=True,             # NEW v1.2.0: Use MMR for better diversity
+    mmr_lambda=0.7            # NEW v1.2.0: Balance relevance (1.0) vs diversity (0.0)
 )
 ```
 
@@ -93,6 +96,37 @@ Returns:
     }
 }
 ```
+
+### Weight Presets (v1.2.0)
+
+Get optimized weight configurations for different use cases:
+
+```python
+# List available presets
+presets = client.get_weight_presets()
+for preset in presets['presets']:
+    print(f"{preset['name']}: {preset['description']}")
+
+# Get recommended weights for a specific use case
+config = client.get_recommended_weights(use_case="entity_focused")
+print(f"Using: {config['name']}")
+print(f"Weights: {config['weights']}")
+
+# Use preset weights in context building
+context = client.build_context(
+    query="project updates",
+    token_budget=2000,
+    weights=config['weights']  # Apply preset weights
+)
+```
+
+Available presets:
+- **balanced**: Balanced across all factors (default)
+- **relevance_focused**: Prioritizes similarity and importance
+- **recency_focused**: Prioritizes recent memories
+- **diversity_focused**: Maximizes variety and coverage
+- **entity_focused**: Prioritizes entity coverage
+- **importance_focused**: Prioritizes memory importance
 
 ### Context Formatting
 
