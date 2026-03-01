@@ -45,6 +45,7 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "requests>=2.25.0",
+        "click>=8.0.0",
     ],
     extras_require={
         "dev": [
@@ -54,6 +55,11 @@ setup(
             "mypy>=1.0.0",
             "flake8>=6.0.0",
             "types-requests>=2.25.0",
+        ],
+    },
+    entry_points={
+        "console_scripts": [
+            "vex-memory=vex_memory.cli:main",
         ],
     },
     project_urls={

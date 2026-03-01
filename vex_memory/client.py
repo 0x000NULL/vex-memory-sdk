@@ -453,6 +453,153 @@ class VexMemoryClient(AutoTuningMixin):
         """
         return self._get("/api/weights/recommend", params={"use_case": use_case})
     
+    def search_memories(
+        self,
+        query: str,
+        limit: int = 10,
+        min_similarity: float = 0.5,
+        memory_type: Optional[str] = None,
+        namespace_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Search for memories (alias for query_memories with list return).
+        
+        Args:
+            query: Search query
+            limit: Maximum memories to return (default: 10)
+            min_similarity: Minimum cosine similarity (0-1, default: 0.5)
+            memory_type: Filter by memory type (optional)
+            namespace_id: Filter by namespace (optional)
+            
+        Returns:
+            List of memory dictionaries with similarity scores
+        """
+        params = {
+            "query": query,
+            "limit": limit,
+            "min_similarity": min_similarity
+        }
+        
+        if memory_type:
+            params["memory_type"] = memory_type
+        
+        if namespace_id:
+            params["namespace_id"] = namespace_id
+        
+        result = self._post("/query", params)
+        
+        # Return as list for consistency with CLI expectations
+        if isinstance(result, dict) and "memories" in result:
+            return result["memories"]
+        return result if isinstance(result, list) else []
+    
+    def list_memories(
+        self,
+        limit: int = 10,
+        offset: int = 0,
+        memory_type: Optional[str] = None,
+        namespace_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """List memories (most recent first).
+        
+        Args:
+            limit: Maximum memories to return (default: 10)
+            offset: Number of memories to skip (default: 0)
+            memory_type: Filter by memory type (optional)
+            namespace_id: Filter by namespace (optional)
+            
+        Returns:
+            List of memory dictionaries
+        """
+        params = {
+            "limit": limit,
+            "offset": offset
+        }
+        
+        if memory_type:
+            params["memory_type"] = memory_type
+        
+        if namespace_id:
+            params["namespace_id"] = namespace_id
+        
+        return self._get("/memories", params)
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Check server health.
+        
+        Returns:
+            Health status dictionary
+        """
+        try:
+            return self._get("/health")
+        except Exception:
+            # If /health doesn't exist, try /api/health or root
+            try:
+                return self._get("/api/health")
+            except Exception:
+                # Fallback: just check if server responds
+                try:
+                    self._get("/")
+                    return {"status": "healthy"}
+                except Exception as e:
+                    return {"status": "unhealthy", "error": str(e)}
+    
+    def get_stats(self, namespace_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get memory statistics.
+        
+        Args:
+            namespace_id: Filter by namespace (optional)
+            
+        Returns:
+            Statistics dictionary
+        """
+        params = {}
+        if namespace_id:
+            params["namespace_id"] = namespace_id
+        
+        return self._get("/stats", params)
+    
+    def delete_namespace(self, namespace_id: str) -> bool:
+        """Delete a namespace.
+        
+        Args:
+            namespace_id: Namespace UUID
+            
+        Returns:
+            True if deleted successfully
+        """
+        self._delete(f"/namespaces/{namespace_id}")
+        return True
+    
+    def get_learned_weights(self, namespace_id: str) -> Optional[Dict[str, float]]:
+        """Get learned weights for a namespace.
+        
+        Args:
+            namespace_id: Namespace UUID
+            
+        Returns:
+            Learned weights dictionary or None if not available
+        """
+        try:
+            result = self._get(f"/api/weights/learned/{namespace_id}")
+            return result.get("weights") if isinstance(result, dict) else result
+        except VexMemoryAPIError:
+            return None
+    
+    def optimize_weights(self, namespace_id: Optional[str] = None) -> Dict[str, Any]:
+        """Trigger weight optimization.
+        
+        Args:
+            namespace_id: Namespace UUID (optional)
+            
+        Returns:
+            Optimization result dictionary
+        """
+        params = {}
+        if namespace_id:
+            params["namespace_id"] = namespace_id
+        
+        return self._post("/api/weights/optimize", params)
+    
     # Internal HTTP methods
     
     def _get(self, path: str, params: Optional[Dict] = None) -> Any:

@@ -15,7 +15,18 @@ cd vex-memory-sdk
 pip install -e .
 ```
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [CLI Usage](#cli-usage)
+- [Python SDK](#python-sdk)
+- [Features](#features)
+- [API Reference](#api-reference)
+
 ## Quick Start
+
+### Python SDK
 
 ```python
 from vex_memory import VexMemoryClient
@@ -45,7 +56,36 @@ print(f"Selected {len(context['memories'])} memories")
 formatted = client.format_context_for_llm(context)
 ```
 
-## Features
+### CLI Usage
+
+The SDK includes a powerful command-line interface:
+
+```bash
+# Check server health
+vex-memory health
+
+# Store a memory
+vex-memory store "The project deadline is March 15th" --importance 0.8
+
+# Search for memories
+vex-memory search "project deadline" --limit 10
+
+# Build intelligent context
+vex-memory context "recent work" --token-budget 4000 --use-mmr
+
+# List recent memories
+vex-memory list --limit 20
+
+# Get statistics
+vex-memory stats
+
+# Configure settings
+vex-memory config set api_url "http://localhost:8000"
+```
+
+**See [CLI Documentation](CLI_DOCS.md) for complete CLI reference.**
+
+## Python SDK
 
 ### Smart Context Building (v1.2.0)
 
