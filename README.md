@@ -484,3 +484,269 @@ MIT License - same as vex-memory main project.
 - [vex-memory server](https://github.com/0x000NULL/vex-memory)
 - [Documentation](https://vexmemory.dev)
 - [Changelog](CHANGELOG.md)
+
+## Auto-Tuning (v2.0.0)
+
+**NEW:** vex-memory now learns optimal weights from your usage patterns!
+
+### Enable Auto-Tuning
+
+```python
+from vex_memory import VexMemoryClient
+
+client = VexMemoryClient()
+
+# Enable auto-tuning for your namespace
+client.enable_auto_tuning(
+    namespace="my-agent",
+    refresh_interval=3600  # Refresh learned weights every hour
+)
+
+# Now use build_context() normally
+context = client.build_context(
+    query="What are our deployment strategies?",
+    token_budget=4000
+)
+
+# Automatically uses learned weights (if available)
+# Falls back to defaults if no learned weights exist yet
+```
+
+### How It Works
+
+1. **Usage Tracking**: Server logs every `build_context()` call (opt-in)
+2. **Pattern Analysis**: System analyzes which weights work best
+3. **Optimization**: Grid search finds optimal weights that maximize diversity + token efficiency
+4. **Auto-Fetch**: SDK automatically fetches and uses learned weights
+
+### Trigger Optimization
+
+After 50+ queries, trigger weight optimization:
+
+```python
+result = client.trigger_weight_optimization(
+    namespace="my-agent",
+    min_queries=50  # Minimum historical queries required
+)
+
+print(f"Best weights: {result['best_weights']}")
+print(f"Objective score: {result['objective_score']}")
+# Output:
+# Best weights: {'similarity': 0.45, 'importance': 0.35, 'recency': 0.2}
+# Objective score: 1.28
+```
+
+### View Analytics
+
+```python
+summary = client.get_analytics_summary("my-agent")
+
+print(f"Total queries: {summary['total_queries']}")
+print(f"Avg token efficiency: {summary['avg_token_efficiency']:.2%}")
+print(f"Avg computation time: {summary['avg_computation_time_ms']:.1f}ms")
+```
+
+### Export/Delete Analytics (GDPR)
+
+```python
+# Export data
+data = client.export_analytics("my-agent", format="json")
+
+# Delete all analytics data
+result = client.delete_analytics("my-agent")
+print(f"Deleted {result['deleted_logs']} query logs")
+```
+
+### Weight Priority
+
+When you call `build_context()`, weights are selected in this order:
+
+1. **Explicit user weights** (highest priority)
+   ```python
+   context = client.build_context("query", weights={"similarity": 0.5, ...})
+   ```
+
+2. **Learned weights** (if auto-tuning enabled)
+   ```python
+   client.enable_auto_tuning("my-agent")
+   context = client.build_context("query")  # Uses learned weights
+   ```
+
+3. **Server defaults** (lowest priority)
+   ```python
+   context = client.build_context("query")  # Uses server defaults
+   ```
+
+### Privacy Controls
+
+The server may be configured with privacy controls. See server's [PRIVACY.md](https://github.com/0x000NULL/vex-memory/blob/main/PRIVACY.md) for:
+
+- Opting out of usage analytics
+- Query sanitization (hashing)
+- Data retention policies
+- GDPR compliance
+
+### Disable Auto-Tuning
+
+```python
+client.disable_auto_tuning()
+```
+
+### Complete Example
+
+```python
+from vex_memory import VexMemoryClient
+
+# 1. Initialize
+client = VexMemoryClient()
+
+# 2. Use normally (analytics logged automatically)
+for i in range(100):
+    context = client.build_context(
+        query=f"Query {i}",
+        token_budget=4000,
+        namespace="my-agent"
+    )
+
+# 3. Trigger optimization after 50+ queries
+result = client.trigger_weight_optimization("my-agent")
+print(f"Learned weights: {result['best_weights']}")
+
+# 4. Enable auto-tuning
+client.enable_auto_tuning("my-agent")
+
+# 5. Continue using with optimized weights
+context = client.build_context(
+    query="Important query",
+    token_budget=4000
+)
+# Now uses learned weights automatically!
+
+# 6. Check improvement
+summary = client.get_analytics_summary("my-agent")
+print(f"Token efficiency: {summary['avg_token_efficiency']:.2%}")
+```
+
+### Auto-Tuning API Reference
+
+#### `enable_auto_tuning(namespace, refresh_interval=3600)`
+
+Enable automatic weight optimization.
+
+- `namespace`: Namespace to optimize for
+- `refresh_interval`: Seconds between weight refreshes (default: 1 hour)
+
+#### `disable_auto_tuning()`
+
+Disable auto-tuning and clear learned weights.
+
+#### `get_learned_weights(namespace)`
+
+Get current learned weights for a namespace.
+
+Returns:
+```python
+{
+    "id": "...",
+    "namespace": "my-agent",
+    "weights": {"similarity": 0.45, "importance": 0.35, "recency": 0.2},
+    "objective_score": 1.28,
+    "training_queries": 120,
+    "optimization_method": "grid_search",
+    "avg_diversity_score": 0.68,
+    "avg_token_efficiency": 0.85,
+    "created_at": "2026-03-01T10:00:00Z",
+    "updated_at": "2026-03-01T10:00:00Z"
+}
+```
+
+#### `trigger_weight_optimization(namespace, search_space=None, min_queries=50)`
+
+Trigger weight optimization for a namespace.
+
+- `namespace`: Namespace to optimize
+- `search_space`: Optional custom search space (dict of param -> list of values)
+- `min_queries`: Minimum historical queries required (default: 50)
+
+Returns:
+```python
+{
+    "weight_id": "...",
+    "history_id": "...",
+    "namespace": "my-agent",
+    "best_weights": {...},
+    "objective_score": 1.28,
+    "metadata": {
+        "training_queries": 120,
+        "validation_queries": 30,
+        "combinations_tested": 50,
+        "computation_time_ms": 1250.5,
+        "avg_diversity_score": 0.68,
+        "avg_token_efficiency": 0.85
+    }
+}
+```
+
+#### `get_analytics_summary(namespace)`
+
+Get usage analytics summary.
+
+Returns:
+```python
+{
+    "enabled": true,
+    "namespace": "my-agent",
+    "total_queries": 234,
+    "avg_tokens_used": 3456.7,
+    "avg_tokens_budget": 4000.0,
+    "avg_token_efficiency": 0.864,
+    "avg_memories_retrieved": 12.3,
+    "avg_memories_dropped": 8.1,
+    "avg_computation_time_ms": 42.5,
+    "first_query": "2026-02-15T10:00:00Z",
+    "last_query": "2026-03-01T08:00:00Z"
+}
+```
+
+#### `export_analytics(namespace, format='json')`
+
+Export analytics data for portability.
+
+- `format`: "json" or "csv"
+
+#### `delete_analytics(namespace)`
+
+Delete all analytics data for a namespace (GDPR compliance).
+
+Returns:
+```python
+{
+    "namespace": "my-agent",
+    "deleted_logs": 234,
+    "message": "Deleted 234 query logs for namespace my-agent"
+}
+```
+
+---
+
+## Migration Guide
+
+### From v1.2.0 to v2.0.0
+
+**No breaking changes!** Auto-tuning is opt-in.
+
+Existing code continues to work:
+```python
+# This still works exactly as before
+context = client.build_context("query", token_budget=4000)
+```
+
+To use auto-tuning:
+```python
+# Enable auto-tuning (new in v2.0.0)
+client.enable_auto_tuning(namespace="my-agent")
+
+# Now this uses learned weights automatically
+context = client.build_context("query", token_budget=4000)
+```
+
